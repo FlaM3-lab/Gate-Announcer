@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gate Announcer</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--text:#14213d;--muted:#5b6679;--accent:#1f6feb;--accent-text:#fff;--border:#d5dbe6;--out:#e8f0fe;--warn:#b42318;
+color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0e131b;--card:#18202c;--text:#e8edf5;--muted:#9aa6b8;--accent:#4c8dff;--accent-text:#0b1220;--border:#2b3647;--out:#1c2a45;--warn:#ff8a7a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e131b;--card:#18202c;--text:#e8edf5;--muted:#9aa6b8;--accent:#4c8dff;--accent-text:#0b1220;--border:#2b3647;--out:#1c2a45;--warn:#ff8a7a;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP","Noto Sans HK",sans-serif;line-height:1.4}
+main{max-width:600px;margin:0 auto;padding:14px}
+h1{font-size:1.2rem;margin:4px 0 4px}
+h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:16px 0 8px}
+.sub{font-size:.8rem;color:var(--muted);margin:0 0 6px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 13px;border-radius:999px;font-size:.92rem;font-family:inherit}
+.chip.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent);font-weight:600}
+.grp{font-size:.74rem;font-weight:700;color:var(--accent);margin:12px 0 6px}
+label{display:block;font-size:.78rem;color:var(--muted);margin:10px 0 3px}
+input,select{width:100%;padding:11px;font-size:1rem;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit}
+.row{display:flex;gap:8px;margin-top:10px;align-items:center}
+.row>*{flex:1}
+.pax{margin-bottom:8px}
+.pax .row{margin-top:6px}
+.pax .nm{flex:2}
+#out{background:var(--out);border-radius:14px;padding:14px}
+#out .l{font-size:.68rem;font-weight:700;letter-spacing:.05em;color:var(--accent);margin-top:12px}
+#out .l:first-child{margin-top:0}
+#out .t{font-size:1.08rem;white-space:pre-wrap}
+.btn{padding:13px;border-radius:12px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-text);font-size:1rem;font-weight:600;font-family:inherit}
+.btn.alt{background:transparent;color:var(--accent)}
+.btn.sm{flex:none;padding:8px 12px;font-size:.85rem}
+.note{font-size:.8rem;color:var(--muted);margin-top:8px;min-height:1.1em}
+.warn{color:var(--warn)}
+details{margin-top:14px}
+summary{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 0}
+.hist{display:block;width:100%;text-align:left;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:10px;margin-bottom:6px;font-size:.85rem;font-family:inherit;white-space:pre-wrap;max-height:7.5em;overflow:hidden}
+#big{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;flex-direction:column;padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px))}
+#bigtxt{flex:1;overflow:auto;font-size:clamp(1.3rem,5vw,2rem);font-weight:600;white-space:pre-wrap}
+#bigtxt p{margin:0 0 1.2em}
+.foot{font-size:.75rem;color:var(--muted);margin:22px 0 8px}
+</style>
+</head>
+<body>
+<main>
+<h1>✈️ Gate Announcer</h1>
+<p class="sub">Test version. Pick languages, an announcement, fill in the details, then tap Read aloud.</p>
+
+<h2>Languages (read in this order)</h2>
+<div class="chips" id="langs"></div>
+
+<h2>Options</h2>
+<div class="chips" id="opts"></div>
+
+<h2>Announcement</h2>
+<div id="groups"></div>
+
+<h2>Details</h2>
+<div class="card">
+  <div id="fields"></div>
+  <div id="paxbox"></div>
+  <div class="row"><button class="btn alt sm" id="clear">Clear fields</button></div>
+</div>
+
+<h2>Announcement text</h2>
+<div id="out"></div>
+<div class="row"><button class="btn" id="speak">🔊 Read aloud</button><button class="btn alt" id="stop">■ Stop</button></div>
+<div class="row"><button class="btn alt" id="copy">Copy</button><button class="btn alt" id="bigopen">Full screen</button></div>
+<div class="note" id="note"></div>
+
+<details><summary>Voice settings</summary>
+<div class="card">
+  <div id="voices"></div>
+  <label>Speed: <span id="rv"></span>×</label><input type="range" id="rate" min="0.6" max="1.3" step="0.05">
+  <label>Repeat whole announcement</label>
+  <select id="rep"><option value="1">1 time</option><option value="2">2 times</option><option value="3">3 times</option></select>
+  <div class="note">Voices come from your device. Japanese and Cantonese voices may need to be installed in your phone’s text-to-speech settings. Read aloud works best in Chrome.</div>
+</div></details>
+
+<details><summary>Recent announcements</summary><div id="hist"></div>
+<button class="btn alt sm" id="hclear">Clear history</button></details>
+
+<p class="foot">Wording is based on the HK Express announcement manual. Check it against your own manual before real use.</p>
+</main>
+<div id="big"><div id="bigtxt"></div><button class="btn" id="bigclose" style="margin-top:14px">Close</button></div>
+
+<script>
+var TEMPLATES = [{"group": "Check-in", "title": "Web check-in reminder", "texts": {"en": "{greet}. May I have your attention please. HK Express flight UO {flight} departing to {dest}. We would like to invite all Guests who have used web or mobile check-in and have not been to our check-in counter to proceed to boarding gate {gate} for document verification. Thank you for your cooperation.", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレス UO{flight}便、{dest}行きにご搭乗予定で、オンラインチェックインをされたお客様のうち、チェックインカウンターにお立ち寄りにならなかったお客様は、ご搭乗前にパスポートなどの確認がございますので、{gate}番搭乗口までお越しください。", "yue": "各位旅客{greet}，乘搭 HK Express UO{flight}前往{dest}的旅客請留意，如您使用網上辦理登機手續及並未前往登機櫃檯，請前往登機閘口{gate}與地勤人員聯絡，以便檢查旅遊證件。多謝。"}}, {"group": "Paging by name", "title": "Document verification", "texts": {"en": "{greet}. May I have your attention please. HK Express flight UO {flight} departing to {dest}. We would like to invite the following Guests to proceed to boarding gate {gate} for document verification: {passengers}. Thank you for your cooperation.", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。{dest}行き UO{flight}便にご搭乗予定の{passengers}、ご搭乗前にパスポートなどの確認がございますので、搭乗口{gate}までお越しください。ご協力ありがとうございます。", "yue": "各位旅客{greet}，以下乘搭 HK Express UO{flight}前往{dest}的旅客：{passengers}，請前往登機閘口{gate}與地勤人員聯絡，以方便檢查旅遊證件。多謝。"}}, {"group": "Paging by name", "title": "Baggage inspection", "texts": {"en": "{greet}. May I have your attention please. HK Express flight UO {flight}{codeshare}, departing to {dest}. We would like to invite the following Guests to proceed to boarding gate {gate} for a baggage inspection: {passengers}. Thank you for your cooperation.", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。{dest}行き UO{flight}便{codeshare}にご搭乗予定の{passengers}、お手荷物の確認がございますので、搭乗口{gate}までお越しください。ご協力ありがとうございます。", "yue": "各位旅客{greet}，以下乘搭 HK Express UO{flight}{codeshare}前往{dest}的旅客：{passengers}，請前往登機閘口{gate}與地勤人員聯絡，以便檢查行李。多謝。"}}, {"group": "Paging by name", "title": "Final call", "texts": {"en": "This is the final call for the following Guests travelling on HK Express flight UO {flight}{codeshare}, departing to {dest}: {passengers}. Please proceed immediately to boarding gate {gate}. The aircraft door will be closing shortly.", "ja": "{dest}行き UO{flight}便{codeshare}にご搭乗のお客様にご案内いたします。{passengers}、最終のご搭乗案内です。至急、搭乗口{gate}までお越しください。まもなく搭乗口を閉め切らせていただきます。", "yue": "乘搭 HK Express UO{flight}{codeshare}前往{dest}的旅客：{passengers}，這是最後登機廣播，請立即前往登機閘口{gate}。機艙門即將關閉。"}}, {"group": "Pre-boarding", "title": "Electronic devices", "texts": {"en": "{greet} ladies and gentlemen, may I have your attention please. For all Guests boarding HK Express flights, please note that any electronic devices in your check-in baggage should be switched off and securely stored to prevent any damage. If you have not done so already, please proceed to your boarding gate to seek assistance. Thank you.", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレスにご搭乗のすべてのお客様、お預けになられたお荷物の中の電子機器は適切に収納され、電源は完全にお切りになりましたでしょうか？万が一、該当の処置をせずに荷物を預入れたお心当たりのあるお客様は、搭乗口までお越しください。地上係員が、お手伝いさせていただきます。", "yue": "各位旅客{greet}，乘搭 HK Express 航班的旅客請留意，所有於託運行李內的電子裝置應已完全關閉並妥善放置，以防發生任何意外。如您的電子裝置並未符合上述要求，請馬上前往登機閘口與地勤人員聯絡。多謝。"}}, {"group": "Pre-boarding", "title": "Lithium power bank", "texts": {"en": "Dear Passengers, according to the latest requirements by the Hong Kong Civil Aviation Department, passengers are restricted from using lithium battery power banks to charge other portable electronic devices and/or recharge power banks during flight. In addition, power banks must not be stored in the overhead compartments. Thank you for your attention.", "ja": "香港エクスプレス並びに香港航空局より、ご案内申し上げます。飛行中、リチウムイオンのモバイルバッテリーから他の電子機器への充電およびリチウムイオンのモバイルバッテリー本体への充電は禁じられております。また、リチウムイオンのモバイルバッテリーは頭上の棚に収納いただかないようお願い申し上げます。安全な運航へのご理解とご協力をお願いいたします。", "yue": "大家好，根據香港民航處最新要求，為確保航空安全，乘客嚴禁在航班上使用鋰電池外置充電器為其他便攜式電子裝置充電或為外置充電器充電。同時，外置充電器亦不可以放置於座位上方的共用置物櫃。多謝各位的合作。"}}, {"group": "Pre-boarding", "title": "Boarding sequence", "texts": {"en": "{greet} ladies and gentlemen. May I have your attention please, welcome to HK Express flight UO {flight}{codeshare}, departing to {dest}. In a few moments, we will be inviting Guests travelling with infants, young children, Guests who need special assistance, and HK Express Priority Guests to prepare for boarding. Other Guests will be invited to board according to seat rows. Please present your boarding pass and travel document when boarding. For your comfort and safety, each guest is allowed to carry only one small personal item, which must fit under the seat in front. If your fare category permits, you may bring one piece of cabin baggage. Additional screening of carry-on baggage will be performed by ground staff at the boarding gate. Any baggage that exceeds the limits of your fare category in terms of number, size, or weight must be checked, and relevant fees will apply. We will have a boarding announcement soon, thank you for your patience.", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。本日は香港エクスプレス UO{flight}便{codeshare}、{dest}行きのご利用、誠にありがとうございます。これより当便にご搭乗いただく順番についてご案内いたします。まずはじめに赤ちゃんやお子様をお連れのお客様、特別なお手伝いが必要なお客様、香港エクスプレス プライオリティをご利用のお客様を先に機内にご案内いたします。その他のお客様はお座席の列の番号に従ってご案内いたします。ご搭乗の際には、搭乗券とパスポートのご提示をお願いいたします。お客様の安全と快適な旅行のために、機内にお持ち込みいただけるのは、前の座席の下に収まる身の回り品お一つのみとなります。ご利用の運賃タイプによっては、さらに機内手荷物をお一つお持ち込みいただけます。機内持ち込み手荷物は、搭乗口において地上職員が再度確認いたします。手荷物の個数、サイズ、重さのいずれかがご利用の運賃タイプの制限を超える場合は、お預けいただく必要があり、追加料金がかかります。それでは、ご搭乗のご案内まで、今しばらくお待ちください。本日は香港エクスプレスにご搭乗いただきまして、誠にありがとうございます。", "yue": "各位旅客{greet}！歡迎乘搭 HK Express UO{flight}{codeshare}前往{dest}。航班將於 10 分鐘後開始登機，我們將首先邀請帶有嬰幼兒隨行，需要特別協助的旅客，香港快運優先服務的旅客登機。其他旅客將根據座位行數登機。登機時請出示登機證及旅行證件。為確保旅途舒適與安全，每位旅客只可攜帶一件必需能夠放置於前方座位下的隨身物品。如閣下的票價類別許可，你亦可攜帶一件登機行李。登機口地勤人員將會再次檢查所有手提行李，超出票價類別限制，包括件數，尺寸及重量的行李，必須寄艙並會收取相應費用。現在請稍候片刻，我們將會再有登機廣播。"}}, {"group": "Boarding", "title": "Express boarding", "texts": {"en": "{greet} ladies and gentlemen. May I have your attention please, welcome to HK Express flight UO {flight}{codeshare}, departing to {dest}. We would like to invite Guests travelling with infants, young children, Guests who need special assistance, and HK Express Priority Guests to board the aircraft. Please prepare your boarding pass and travel document for boarding. All other Guests please remain seated until your row is called, thank you!", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用、誠にありがとうございます。香港エクスプレスから優先搭乗のご案内をいたします。小さなお子様をお連れのお客様、特別なお手伝いが必要なお客様、香港エクスプレス プライオリティをご利用のお客様のご搭乗を開始いたします。搭乗口で搭乗券とパスポートを再度確認いたしますので、お手元にご用意の上、搭乗口までお進みください。その他のお客様は、次のご案内まで今しばらくお待ちください。", "yue": "各位旅客{greet}！歡迎乘搭 HK Express UO{flight}{codeshare}前往{dest}。現在我們將首先邀請帶有嬰幼兒隨行、需要特別協助的旅客、香港快運優先服務的旅客登機。登機時請出示登機證及旅行證件以便地勤人員再次檢查。其他旅客請稍候片刻。多謝！"}}, {"group": "A321 NEO – 236Y row boarding", "title": "Rows 26–40", "texts": {"en": "{greet} ladies and gentlemen. May I have your attention please, welcome to HK Express flight UO {flight}{codeshare}, departing to {dest}. We would like to invite Guests who are seated in rows 26 to 40 to board the aircraft. Kindly ensure that your boarding pass and travel documents are ready for secondary document check before boarding. All other Guests please remain seated, thank you!", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用、誠にありがとうございます。これより、お座席列 26から40列目にお座りのお客様のご搭乗を開始いたします。搭乗口で搭乗券とパスポートを再度確認いたしますので、お手元にご用意の上、搭乗口までお進みください。その他の列のお客様は、次のご案内まで今しばらくお待ちください。", "yue": "各位旅客{greet}！歡迎乘搭 HK Express UO{flight}{codeshare}前往{dest}。現在我們邀請第 26 到 40 排的旅客登機。登機時請出示登機證及旅行證件以便地勤人員再次檢查。其他旅客請稍候片刻，多謝！"}}, {"group": "A321 NEO – 236Y row boarding", "title": "Rows 11–25", "texts": {"en": "Guests who are seated in rows 11 to 25 may board now. Thank you.", "ja": "お座席列 11から25列目にお座りのお客様はただいまよりご搭乗ください。", "yue": "現在，我們請第 11 到 25 排的旅客登機。多謝。"}}, {"group": "A321 NEO – 236Y row boarding", "title": "All remaining", "texts": {"en": "Ladies and gentlemen, would all remaining Guests travelling on HK Express flight UO {flight}{codeshare}, departing to {dest}, please board now. Thank you.", "ja": "お待たせいたしました。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用のすべてのお客様、ただいまよりご搭乗ください。", "yue": "乘搭 HK Express UO{flight}{codeshare}前往{dest}的所有旅客，請現在登機。多謝。"}}, {"group": "A321 – 230Y row boarding", "title": "Rows 26–39", "texts": {"en": "{greet} ladies and gentlemen. May I have your attention please, welcome to HK Express flight UO {flight}{codeshare}, departing to {dest}. We would like to invite Guests who are seated in rows 26 to 39 to board the aircraft. Kindly ensure that your boarding pass and travel documents are ready for secondary document check before boarding. All other Guests please remain seated, thank you!", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用、誠にありがとうございます。これより、お座席列 26から39列目にお座りのお客様のご搭乗を開始いたします。搭乗口で搭乗券とパスポートを再度確認いたしますので、お手元にご用意の上、搭乗口までお進みください。その他の列のお客様は、次のご案内まで今しばらくお待ちください。", "yue": "各位旅客{greet}！歡迎乘搭 HK Express UO{flight}{codeshare}前往{dest}。現在我們邀請第 26 到 39 排的旅客登機。登機時請出示登機證及旅行證件以便地勤人員再次檢查。其他旅客請稍候片刻，多謝！"}}, {"group": "A321 – 230Y row boarding", "title": "Rows 11–25", "texts": {"en": "Guests who are seated in rows 11 to 25 may board now. Thank you.", "ja": "お座席列 11から25列目にお座りのお客様はただいまよりご搭乗ください。", "yue": "現在，我們請第 11 到 25 排的旅客登機。多謝。"}}, {"group": "A321 – 230Y row boarding", "title": "All remaining", "texts": {"en": "Ladies and gentlemen, would all remaining Guests travelling on HK Express flight UO {flight}{codeshare}, departing to {dest}, please board now. Thank you.", "ja": "お待たせいたしました。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用のすべてのお客様、ただいまよりご搭乗ください。", "yue": "乘搭 HK Express UO{flight}{codeshare}前往{dest}的所有旅客，請現在登機。多謝。"}}, {"group": "A320 NEO – 188Y row boarding", "title": "Rows 16–32", "texts": {"en": "{greet} ladies and gentlemen. May I have your attention please, welcome to HK Express flight UO {flight}{codeshare}, departing to {dest}. We would like to invite Guests who are seated in rows 16 to 32 to board the aircraft. Kindly ensure that your boarding pass and travel documents are ready for secondary document check before boarding. All other Guests please remain seated, thank you!", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用、誠にありがとうございます。これより、お座席列 16から32列目にお座りのお客様のご搭乗を開始いたします。搭乗口で搭乗券とパスポートを再度確認いたしますので、お手元にご用意の上、搭乗口までお進みください。その他の列のお客様は、次のご案内まで今しばらくお待ちください。", "yue": "各位旅客{greet}！歡迎乘搭 HK Express UO{flight}{codeshare}前往{dest}。現在我們邀請第 16 到 32 排的旅客登機。登機時請出示登機證及旅行證件以便地勤人員再次檢查。其他旅客請稍候片刻，多謝！"}}, {"group": "A320 NEO – 188Y row boarding", "title": "All remaining", "texts": {"en": "Ladies and gentlemen, would all remaining Guests travelling on HK Express flight UO {flight}{codeshare}, departing to {dest}, please board now. Thank you.", "ja": "お待たせいたしました。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用のすべてのお客様、ただいまよりご搭乗ください。", "yue": "乘搭 HK Express UO{flight}{codeshare}前往{dest}的所有旅客，請現在登機。多謝。"}}, {"group": "A320 – 180Y row boarding", "title": "Rows 16–30", "texts": {"en": "{greet} ladies and gentlemen. May I have your attention please, welcome to HK Express flight UO {flight}{codeshare}, departing to {dest}. We would like to invite Guests who are seated in rows 16 to 30 to board the aircraft. Kindly ensure that your boarding pass and travel documents are ready for secondary document check before boarding. All other Guests please remain seated, thank you!", "ja": "皆様、{greet}。香港エクスプレスからご案内いたします。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用、誠にありがとうございます。これより、お座席列 16から30列目にお座りのお客様のご搭乗を開始いたします。搭乗口で搭乗券とパスポートを再度確認いたしますので、お手元にご用意の上、搭乗口までお進みください。その他の列のお客様は、次のご案内まで今しばらくお待ちください。", "yue": "各位旅客{greet}！歡迎乘搭 HK Express UO{flight}{codeshare}前往{dest}。現在我們邀請第 16 到 30 排的旅客登機。登機時請出示登機證及旅行證件以便地勤人員再次檢查。其他旅客請稍候片刻，多謝！"}}, {"group": "A320 – 180Y row boarding", "title": "All remaining", "texts": {"en": "Ladies and gentlemen, would all remaining Guests travelling on HK Express flight UO {flight}{codeshare}, departing to {dest}, please board now. Thank you.", "ja": "お待たせいたしました。香港エクスプレス {dest}行き UO{flight}便{codeshare}のご利用のすべてのお客様、ただいまよりご搭乗ください。", "yue": "乘搭 HK Express UO{flight}{codeshare}前往{dest}的所有旅客，請現在登機。多謝。"}}, {"group": "Flight irregularities", "title": "Delay – new time", "texts": {"en": "May I have your attention please, this is an announcement for HK Express flight UO {flight}{codeshare}, departing to {dest}. We regret to inform you that your flight has been delayed due to {reason}. Your new estimated {kind} time is {etd}. Further announcements will be made when the flight is ready for boarding. If you require further assistance, please contact our ground staff at the service desk. We apologize for the inconvenience caused. Thank you.", "ja": "香港エクスプレス {dest}行き UO{flight}便{codeshare}をご利用のお客様へお知らせいたします。当便は、{reason}により出発が遅れております。新しい{kind}時刻は、{etd}を予定しております。出発の準備が整い次第、改めてご案内させていただきます。なお、当遅延に関するお問い合わせがございましたら、サービスデスクへお越しください。この度は、遅延が生じましたことを深くお詫び申し上げます。", "yue": "各位旅客請注意，乘搭 HK Express UO{flight}{codeshare}前往{dest}的航班，由於{reason}的關係，引致航班延誤，新的{kind}時間將改為{etd}。當航班準備好登機時，我們將會再作宣佈。如您需要任何協助，請與我們的地勤人員聯絡。我們對於是次延誤所造成的不便深感歉意，多謝您的體諒。"}}, {"group": "Flight irregularities", "title": "Delay – until further notice", "texts": {"en": "May I have your attention please, this is an announcement for HK Express flight UO {flight}{codeshare}, departing to {dest}. We regret to inform you that your flight has been delayed due to {reason}. Further announcements will be made when the flight is ready for boarding. If you require further assistance, please contact our ground staff at the service desk. We apologize for the inconvenience caused. Thank you.", "ja": "香港エクスプレス UO{flight}便{codeshare}をご利用のお客様へお知らせいたします。当便は、{reason}により出発が遅れております。出発の準備が整い次第、改めてご案内させていただきますので、今しばらくお待ちください。なお、当遅延に関するお問い合わせがございましたら、サービスデスクへお越しください。この度は、遅延が生じましたことを深くお詫び申し上げます。", "yue": "各位旅客請注意，乘搭 HK Express UO{flight}{codeshare}前往{dest}的航班，由於{reason}的關係，引致航班延誤，當航班準備好登機時，我們將會再次宣佈新的起飛或登機時間。如您需要任何協助，請與我們的地勤人員聯絡。我們對於是次延誤所引致的不便深感歉意，多謝您的體諒。"}}, {"group": "Flight irregularities", "title": "Cancellation", "texts": {"en": "May I have your attention please. HK Express flight UO {flight}{codeshare}, departing to {dest}, has been cancelled due to {reason}. Further arrangements will be made. For more information or further assistance, please contact our ground staff at the service desk. We apologize for the inconvenience caused. Thank you.", "ja": "香港エクスプレス {dest}行き UO{flight}便{codeshare}をご利用のお客様へご案内いたします。当便は、{reason}により欠航させていただくこととなりました。今後の対応については、追ってご案内いたします。お問い合わせがあるお客様、お手伝いが必要なお客様は、サービスデスクへお越しください。この度は、ご迷惑をおかけいたしますことを深くお詫び申し上げます。", "yue": "各位旅客請注意，乘搭 HK Express UO{flight}{codeshare}前往{dest}的航班，由於{reason}的關係，引致航班取消，我們將作進一步安排。如您想了解更多或需要任何協助，請與我們的地勤人員聯絡。我們對於是次航班取消所引致的不便深感歉意，多謝您的體諒。"}}];
+var LANGS=[{c:"en",n:"English",tag:"en-US",m:/^en/i},{c:"ja",n:"Japanese 日本語",tag:"ja-JP",m:/^ja/i},{c:"yue",n:"Cantonese 廣東話",tag:"zh-HK",m:/^(zh[-_]HK|yue)/i}];
+var CH={
+ greet:[{l:"Morning",t:{en:"Good morning",ja:"おはようございます",yue:"早晨"}},{l:"Afternoon",t:{en:"Good afternoon",ja:"こんにちは",yue:"午安"}},{l:"Evening",t:{en:"Good evening",ja:"こんばんは",yue:"晚安"}}],
+ reason:[{l:"Bad weather",t:{en:"bad weather",ja:"天候不良",yue:"惡劣天氣"}},{l:"Aircraft switch",t:{en:"an aircraft switch",ja:"機材変更",yue:"航機調動"}},{l:"Operational reason",t:{en:"operational reasons",ja:"運航上の都合",yue:"航務運作"}},{l:"Technical issue",t:{en:"a technical issue",ja:"機材トラブル",yue:"機件故障"}},{l:"Air traffic control",t:{en:"air traffic control",ja:"航空管制からの指示",yue:"航空管制"}},{l:"Late aircraft arrival",t:{en:"the late arrival of the aircraft",ja:"使用機材の到着遅延",yue:"航機延遲抵港"}}],
+ title:[{l:"Mr.",t:{en:"Mr.",ja:"",yue:"先生"}},{l:"Ms.",t:{en:"Ms.",ja:"",yue:"女士"}}],
+ kind:[{l:"Departure",t:{en:"departure",ja:"出発",yue:"起飛"}},{l:"Boarding",t:{en:"boarding",ja:"搭乗",yue:"登機"}}]
+};
+var CS={en:", codeshare with Cathay Pacific flight CX {cx}",ja:"、キャセイパシフィック航空とのコードシェア CX{cx}便",yue:"，代號共享航班：國泰航空 CX{cx}"};
+var LAB={flight:"HK Express flight number (UO)",cx:"Cathay codeshare number (CX)",dest:"Destination",gate:"Gate",name:"Passenger name",etd:"New time (24-hour, e.g. 18:45)",reason:"Reason",title:"Title",kind:"New time is for",greet:"Time of day",passengers:"Passenger names"};
+var KEYRE=/\{(\w+)\}/g;
+function $(i){return document.getElementById(i);}
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function ld(k,d){try{var v=JSON.parse(localStorage.getItem(k));return v==null?d:v;}catch(e){return d;}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function lab(k){return LAB[k]||k.replace(/_/g," ");}
+
+function greetNow(){var h=new Date().getHours();return h<12?0:h<18?1:2;}
+var saved=ld("gaVals",{});
+var vals={flight:saved.flight||"",cx:saved.cx||"",dest:saved.dest||"",gate:saved.gate||"",csoff:saved.csoff||"0",greet:String(greetNow())};
+var cfg=ld("gaCfg",{langs:["en","ja","yue"],rate:0.9,rep:1,voice:{}});
+if(!cfg.voice)cfg.voice={};
+var hist=ld("gaHist",[]), pax=[{t:-1,n:"",s:""}], cur=TEMPLATES[0], voices=[];
+function saveVals(){sv("gaVals",{flight:vals.flight,cx:vals.cx,dest:vals.dest,gate:vals.gate,csoff:vals.csoff});}
+function active(){return LANGS.filter(function(l){return cfg.langs.indexOf(l.c)>=0;});}
+
+function keysOf(t){var raw=[];Object.keys(t.texts).forEach(function(l){(t.texts[l].match(KEYRE)||[]).forEach(function(m){m=m.slice(1,-1);if(raw.indexOf(m)<0)raw.push(m);});});
+ if(raw.indexOf("codeshare")<0)return raw;
+ var base=raw.filter(function(k){return k!=="codeshare"&&k!=="cx";});var i=base.indexOf("flight");
+ if(i>=0)base.splice(i+1,0,"cx");else base.push("cx");return base;}
+function fieldKeys(){return keysOf(cur).filter(function(k){return k!=="greet"&&k!=="passengers"&&!(k==="cx"&&vals.csoff==="1");});}
+function spaceDigits(v){return /^[A-Za-z]{0,3}\s*\d+$/.test(v)?v.replace(/(\d)/g,"$1 ").trim():v;}
+function seatSpeech(s){return s.replace(/(\d)([A-Za-z])/g,"$1 $2");}
+function fmtTime(v,lang){var m=/^(\d{1,2})\s*[:：.]?\s*(\d{2})$/.exec(v.trim());if(!m)return v;
+ var h=+m[1],mi=+m[2];if(h>23||mi>59)return v;var h12=h%12===0?12:h%12,mm=mi<10?"0"+mi:""+mi;
+ if(lang==="en")return h12+":"+mm+" "+(h<12?"AM":"PM");
+ if(lang==="ja")return (h<12?"午前":"午後")+(h%12)+"時"+(mi===0?"":mi+"分");
+ return (h<12?"上午":h<18?"下午":"晚上")+h12+"時"+(mi===0?"":mi+"分");}
+function paxText(lang,sp){var list=pax.filter(function(p){return p.n.trim();});if(!list.length)return "[passenger names]";
+ var parts=list.map(function(p){var n=p.n.trim(),s=p.s.trim();if(sp)s=seatSpeech(s);var ti=p.t>=0?CH.title[p.t].t[lang]:"";
+  if(lang==="ja")return (s?"お座席"+s+"の":"")+n+"様";
+  if(lang==="yue")return (s?"座位"+s+"的":"")+n+ti;
+  return [ti,n].filter(Boolean).join(" ")+(s?", seat "+s:"");});
+ if(lang==="en")return parts.length===1?parts[0]:parts.slice(0,-1).join("; ")+"; and "+parts[parts.length-1];
+ return parts.join("、");}
+function fill(t,lang,sp){var txt=t.texts[lang]||t.texts.en;return txt.replace(KEYRE,function(_,k){
+ var v=String(vals[k]==null?"":vals[k]).trim(),ch=CH[k],blank="["+lab(k).toLowerCase()+"]";
+ if(k==="codeshare"){if(vals.csoff==="1")return "";var cx=String(vals.cx||"").trim();var ct=!cx?"[cathay codeshare number]":(sp?spaceDigits(cx):cx);return CS[lang].replace("{cx}",ct);}
+ if(k==="passengers")return paxText(lang,sp);
+ if(!v)return blank;
+ if(ch){var c=ch[parseInt(v,10)];return c&&c.t[lang]!=null?c.t[lang]:blank;}
+ if(k==="etd")return fmtTime(v,lang);
+ if(sp&&(k==="flight"||k==="cx"))return spaceDigits(v);
+ return v;});}
+function items(){return active().map(function(l){return {l:l.c,t:fill(cur,l.c,false),s:fill(cur,l.c,true)};});}
+function lname(c){return LANGS.filter(function(l){return l.c===c;})[0].n;}
+
+function note(m,w){var n=$("note");n.textContent=m;n.className="note"+(w?" warn":"");}
+function render(){var o=$("out");o.innerHTML="";var it=items();
+ it.forEach(function(x){if(it.length>1)o.appendChild(el("div","l",lname(x.l).toUpperCase()));o.appendChild(el("div","t",x.t));});
+ var miss=fieldKeys().filter(function(k){return !String(vals[k]||"").trim();});
+ if(keysOf(cur).indexOf("passengers")>=0&&!pax.some(function(p){return p.n.trim();}))miss.push("passengers");
+ note(miss.length?"Still to fill in: "+miss.map(lab).join(", ")+".":"",miss.length>0);}
+
+function chip(text,on,fn){var b=el("button","chip"+(on?" on":""),text);b.onclick=fn;return b;}
+function drawLangs(){var c=$("langs");c.innerHTML="";LANGS.forEach(function(l){var on=cfg.langs.indexOf(l.c)>=0;
+ c.appendChild(chip(l.n,on,function(){var n=on?cfg.langs.filter(function(x){return x!==l.c;}):cfg.langs.concat(l.c);
+  if(!n.length)return;cfg.langs=LANGS.map(function(x){return x.c;}).filter(function(x){return n.indexOf(x)>=0;});sv("gaCfg",cfg);drawLangs();render();}));});}
+function drawOpts(){var c=$("opts");c.innerHTML="";
+ CH.greet.forEach(function(g,i){c.appendChild(chip(g.l,vals.greet===String(i),function(){vals.greet=String(i);drawOpts();render();}));});
+ var on=vals.csoff!=="1";c.appendChild(chip(on?"Cathay codeshare: ON":"Cathay codeshare: OFF",on,function(){vals.csoff=on?"1":"0";saveVals();drawOpts();drawFields();render();}));}
+function drawGroups(){var g=$("groups");g.innerHTML="";var order=[],by={};
+ TEMPLATES.forEach(function(t){if(!by[t.group]){by[t.group]=[];order.push(t.group);}by[t.group].push(t);});
+ order.forEach(function(n){g.appendChild(el("div","grp",n));var r=el("div","chips");by[n].forEach(function(t){r.appendChild(chip(t.title,t===cur,function(){cur=t;drawGroups();drawFields();render();}));});g.appendChild(r);});}
+function drawFields(){var box=$("fields");box.innerHTML="";
+ fieldKeys().forEach(function(k){var ch=CH[k];box.appendChild(el("label",null,lab(k)));
+  if(ch){var r=el("div","chips");ch.forEach(function(c,i){var sel=vals[k]===String(i);r.appendChild(chip(c.l,sel,function(){vals[k]=sel?"":String(i);drawFields();render();}));});box.appendChild(r);}
+  else{var inp=el("input");inp.value=vals[k]||"";inp.setAttribute("autocomplete","off");if(k==="flight"||k==="cx")inp.setAttribute("inputmode","numeric");
+   inp.oninput=function(){vals[k]=inp.value;if(k==="flight"||k==="cx"||k==="dest"||k==="gate")saveVals();render();};box.appendChild(inp);}});
+ drawPax();}
+function drawPax(){var b=$("paxbox");b.innerHTML="";if(keysOf(cur).indexOf("passengers")<0)return;
+ b.appendChild(el("label",null,"Passengers"));
+ pax.forEach(function(p,i){var c=el("div","card pax");var r=el("div","row");
+  CH.title.forEach(function(t,ti){r.appendChild(chip(t.l,p.t===ti,function(){p.t=p.t===ti?-1:ti;drawPax();render();}));});
+  if(pax.length>1){var rm=el("button","btn alt sm","Remove");rm.onclick=function(){pax.splice(i,1);drawPax();render();};r.appendChild(rm);}
+  c.appendChild(r);var r2=el("div","row");var n=el("input","nm");n.placeholder="Name";n.value=p.n;n.oninput=function(){p.n=n.value;render();};
+  var s=el("input");s.placeholder="Seat";s.value=p.s;s.oninput=function(){p.s=s.value;render();};
+  r2.appendChild(n);r2.appendChild(s);c.appendChild(r2);b.appendChild(c);});
+ var add=el("button","btn alt sm","+ Add passenger");add.onclick=function(){pax.push({t:-1,n:"",s:""});drawPax();};b.appendChild(add);}
+
+function drawHist(){var h=$("hist");h.innerHTML="";if(!hist.length){h.appendChild(el("div","note","Nothing yet."));return;}
+ hist.forEach(function(g){var b=el("button","hist",g.map(function(x){return x.t;}).join("\n\n"));b.onclick=function(){say(g);};h.appendChild(b);});}
+function addHist(g){var key=JSON.stringify(g);hist=hist.filter(function(x){return JSON.stringify(x)!==key;});hist.unshift(g);hist=hist.slice(0,8);sv("gaHist",hist);drawHist();}
+
+var SS="speechSynthesis" in window;
+function loadVoices(){if(!SS)return;voices=speechSynthesis.getVoices();var box=$("voices");box.innerHTML="";
+ LANGS.forEach(function(l){var list=voices.filter(function(v){return l.m.test(v.lang);});box.appendChild(el("label",null,"Voice: "+l.n));
+  var s=el("select");var d=el("option",null,list.length?"Default":"No voice found on this device");d.value="";s.appendChild(d);
+  list.forEach(function(v){var o=el("option",null,v.name+" ("+v.lang+")");o.value=v.name;s.appendChild(o);});
+  s.value=cfg.voice[l.c]||"";s.onchange=function(){cfg.voice[l.c]=s.value;sv("gaCfg",cfg);};box.appendChild(s);});}
+function say(g){if(!SS){note("Read-aloud isn’t supported in this browser. Try Chrome.",true);return;}
+ speechSynthesis.cancel();
+ for(var r=0;r<cfg.rep;r++)g.forEach(function(x){var L=LANGS.filter(function(l){return l.c===x.l;})[0];
+  var u=new SpeechSynthesisUtterance(x.s);u.lang=L.tag;u.rate=cfg.rate;
+  var v=voices.filter(function(z){return z.name===cfg.voice[x.l];})[0]||voices.filter(function(z){return L.m.test(z.lang);})[0];
+  if(v){u.voice=v;u.lang=v.lang;}speechSynthesis.speak(u);});}
+
+$("speak").onclick=function(){var g=items();say(g);addHist(g);};
+$("stop").onclick=function(){if(SS)speechSynthesis.cancel();};
+$("copy").onclick=function(){var g=items(),t=g.map(function(x){return x.t;}).join("\n\n");
+ try{navigator.clipboard.writeText(t).then(function(){note("Copied to clipboard.");addHist(g);},function(){note("Copy not available here.",true);});}catch(e){note("Copy not available here.",true);}};
+$("bigopen").onclick=function(){var b=$("bigtxt");b.innerHTML="";items().forEach(function(x){b.appendChild(el("p",null,x.t));});$("big").style.display="flex";};
+$("bigclose").onclick=function(){$("big").style.display="none";};
+$("clear").onclick=function(){fieldKeys().forEach(function(k){vals[k]="";});pax=[{t:-1,n:"",s:""}];saveVals();drawFields();render();};
+$("hclear").onclick=function(){hist=[];sv("gaHist",hist);drawHist();};
+$("rate").value=cfg.rate;$("rv").textContent=Number(cfg.rate).toFixed(2);
+$("rate").oninput=function(){cfg.rate=parseFloat(this.value);$("rv").textContent=cfg.rate.toFixed(2);sv("gaCfg",cfg);};
+$("rep").value=String(cfg.rep);$("rep").onchange=function(){cfg.rep=parseInt(this.value,10);sv("gaCfg",cfg);};
+if(SS){loadVoices();speechSynthesis.onvoiceschanged=loadVoices;}
+drawLangs();drawOpts();drawGroups();drawFields();drawHist();render();
+</script>
+</body>
+</html>
