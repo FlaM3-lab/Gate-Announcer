@@ -5,17 +5,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.util.Calendar
 
 class MainActivity : ComponentActivity() {
     private lateinit var speaker: Speaker
@@ -37,13 +40,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun greetNow(): Int {
+    val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    return if (h < 12) 0 else if (h < 18) 1 else 2
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun App(store: Store, speaker: Speaker) {
     val custom = remember { mutableStateListOf<Template>().apply { addAll(store.loadCustom()) } }
     val all = baseTemplates + custom
-    var cur by remember { mutableStateOf(baseTemplates[1]) }
-    val vals = remember { mutableStateMapOf<String, String>().apply { putAll(store.loadVals()) } }
+    var cur by remember { mutableStateOf(baseTemplates[0]) }
+    val vals = remember {
+        mutableStateMapOf<String, String>().apply { putAll(store.loadVals()); put("greet", greetNow().toString()) }
+    }
     var settings by remember { mutableStateOf(store.loadSettings()) }
     val history = remember { mutableStateListOf<List<Item>>().apply { addAll(store.loadHistory()) } }
     var status by remember { mutableStateOf("") }
@@ -58,7 +68,8 @@ fun App(store: Store, speaker: Speaker) {
     val langs = LANGS.map { it.code }.filter { it in settings.langs }
     val items = build(cur, vals, langs)
     val allText = items.joinToString("\n\n") { it.text }
-    val missing = cur.keys.filter { vals[it].isNullOrBlank() }
+    val fieldKeys = cur.keys.filter { it != "greet" }
+    val missing = fieldKeys.filter { vals[it].isNullOrBlank() }
     val noTranslation = langs.filter { !cur.hasLang(it) }.map { langOf(it).name }
 
     fun addHistory(g: List<Item>) {
@@ -88,20 +99,46 @@ fun App(store: Store, speaker: Speaker) {
                 }
             }
 
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                all.forEach { t ->
-                    FilterChip(selected = t == cur, onClick = { cur = t }, label = { Text(t.title) })
+            Text("Time of day", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CHOICES.getValue("greet").forEachIndexed { i, c ->
+                    FilterChip(selected = vals["greet"] == i.toString(), onClick = { vals["greet"] = i.toString() },
+                        label = { Text(c.label) })
                 }
             }
 
-            cur.keys.forEach { k ->
-                OutlinedTextField(
-                    value = vals[k] ?: "",
-                    onValueChange = { vals[k] = it; if (k in SAVED_KEYS) store.saveVals(vals) },
-                    label = { Text(label(k)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+            all.groupBy { it.group }.forEach { (g, list) ->
+                Text(g, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    list.forEach { t ->
+                        FilterChip(selected = t == cur, onClick = { cur = t }, label = { Text(t.title) })
+                    }
+                }
+            }
+
+            fieldKeys.forEach { k ->
+                val ch = CHOICES[k]
+                if (ch != null) {
+                    Text(label(k), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ch.forEachIndexed { i, c ->
+                            val sel = vals[k] == i.toString()
+                            FilterChip(selected = sel, onClick = { vals[k] = if (sel) "" else i.toString() },
+                                label = { Text(c.label) })
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = vals[k] ?: "",
+                        onValueChange = { vals[k] = it; if (k in SAVED_KEYS) store.saveVals(vals) },
+                        label = { Text(label(k)) },
+                        singleLine = true,
+                        keyboardOptions = if (k == "flight" || k == "cx") KeyboardOptions(keyboardType = KeyboardType.Number)
+                            else KeyboardOptions.Default,
+                        supportingText = if (k == "etd") { { Text("24-hour, for example 18:45") } } else null,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -137,10 +174,10 @@ fun App(store: Store, speaker: Speaker) {
             if (status.isNotEmpty()) Text(status, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { cur.keys.forEach { vals[it] = "" }; store.saveVals(vals) }) { Text("Clear fields") }
+                TextButton(onClick = { fieldKeys.forEach { vals[it] = "" }; store.saveVals(vals) }) { Text("Clear fields") }
                 TextButton(onClick = { showCustom = true }) { Text("+ New template") }
                 if (cur.custom) TextButton(onClick = {
-                    custom.remove(cur); store.saveCustom(custom); cur = baseTemplates[1]
+                    custom.remove(cur); store.saveCustom(custom); cur = baseTemplates[0]
                 }) { Text("Delete") }
             }
 
@@ -181,9 +218,9 @@ fun App(store: Store, speaker: Speaker) {
                     LANGS.forEach { l ->
                         OutlinedTextField(body[l.code] ?: "", { body[l.code] = it },
                             label = { Text(if (l.code == "en") "English text (required)" else "${l.name} text (optional)") },
-                            minLines = 2, placeholder = { if (l.code == "en") Text("A {item} was found at gate {gate}.") })
+                            minLines = 2, placeholder = { if (l.code == "en") Text("{greet}. Gate {gate} is now open.") })
                     }
-                    Text("Use {name}, {gate}, {anything} for fill-in fields. Use the same ones in every language.", fontSize = 12.sp)
+                    Text("Fill-in fields: {flight} {cx} {dest} {gate} {name} {greet}, or any {word} you make up. Use the same ones in every language.", fontSize = 12.sp)
                 }
             },
             confirmButton = {
