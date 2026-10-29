@@ -54,6 +54,7 @@ fun App(store: Store, speaker: Speaker) {
     val vals = remember {
         mutableStateMapOf<String, String>().apply { putAll(store.loadVals()); put("greet", greetNow().toString()) }
     }
+    val pax = remember { mutableStateListOf(Passenger()) }
     var settings by remember { mutableStateOf(store.loadSettings()) }
     val history = remember { mutableStateListOf<List<Item>>().apply { addAll(store.loadHistory()) } }
     var status by remember { mutableStateOf("") }
@@ -66,10 +67,11 @@ fun App(store: Store, speaker: Speaker) {
     fun update(s: Settings) { settings = s; store.saveSettings(s) }
 
     val langs = LANGS.map { it.code }.filter { it in settings.langs }
-    val items = build(cur, vals, langs)
+    val items = build(cur, vals, pax, langs)
     val allText = items.joinToString("\n\n") { it.text }
-    val fieldKeys = cur.keys.filter { it != "greet" }
-    val missing = fieldKeys.filter { vals[it].isNullOrBlank() }
+    val fieldKeys = cur.keys.filter { it != "greet" && it != "passengers" && !(it == "cx" && vals["csoff"] == "1") }
+    val missing = fieldKeys.filter { vals[it].isNullOrBlank() } +
+        (if ("passengers" in cur.keys && pax.none { it.name.isNotBlank() }) listOf("passengers") else emptyList())
     val noTranslation = langs.filter { !cur.hasLang(it) }.map { langOf(it).name }
 
     fun addHistory(g: List<Item>) {
@@ -107,6 +109,10 @@ fun App(store: Store, speaker: Speaker) {
                 }
             }
 
+            val csOn = vals["csoff"] != "1"
+            FilterChip(selected = csOn, onClick = { vals["csoff"] = if (csOn) "1" else "0"; store.saveVals(vals) },
+                label = { Text(if (csOn) "Cathay codeshare: ON" else "Cathay codeshare: OFF") })
+
             all.groupBy { it.group }.forEach { (g, list) ->
                 Text(g, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -139,6 +145,32 @@ fun App(store: Store, speaker: Speaker) {
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+
+            if ("passengers" in cur.keys) {
+                Text("Passengers", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                pax.forEachIndexed { i, p ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CHOICES.getValue("title").forEachIndexed { ti, c ->
+                                    FilterChip(selected = p.title == ti,
+                                        onClick = { pax[i] = p.copy(title = if (p.title == ti) -1 else ti) },
+                                        label = { Text(c.label) })
+                                }
+                                Spacer(Modifier.weight(1f))
+                                if (pax.size > 1) TextButton(onClick = { pax.removeAt(i) }) { Text("Remove") }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(p.name, { pax[i] = p.copy(name = it) }, label = { Text("Name") },
+                                    singleLine = true, modifier = Modifier.weight(2f))
+                                OutlinedTextField(p.seat, { pax[i] = p.copy(seat = it) }, label = { Text("Seat") },
+                                    singleLine = true, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+                OutlinedButton(onClick = { pax.add(Passenger()) }) { Text("+ Add passenger") }
             }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -174,7 +206,7 @@ fun App(store: Store, speaker: Speaker) {
             if (status.isNotEmpty()) Text(status, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { fieldKeys.forEach { vals[it] = "" }; store.saveVals(vals) }) { Text("Clear fields") }
+                TextButton(onClick = { fieldKeys.forEach { vals[it] = "" }; pax.clear(); pax.add(Passenger()); store.saveVals(vals) }) { Text("Clear fields") }
                 TextButton(onClick = { showCustom = true }) { Text("+ New template") }
                 if (cur.custom) TextButton(onClick = {
                     custom.remove(cur); store.saveCustom(custom); cur = baseTemplates[0]
@@ -220,7 +252,7 @@ fun App(store: Store, speaker: Speaker) {
                             label = { Text(if (l.code == "en") "English text (required)" else "${l.name} text (optional)") },
                             minLines = 2, placeholder = { if (l.code == "en") Text("{greet}. Gate {gate} is now open.") })
                     }
-                    Text("Fill-in fields: {flight} {cx} {dest} {gate} {name} {greet}, or any {word} you make up. Use the same ones in every language.", fontSize = 12.sp)
+                    Text("Fill-in fields: {flight} {codeshare} {dest} {gate} {name} {greet} {passengers}, or any {word} you make up. Use the same ones in every language.", fontSize = 12.sp)
                 }
             },
             confirmButton = {
