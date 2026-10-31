@@ -11,7 +11,8 @@ data class Settings(
     val apiKey: String = "",
     val cloudVoices: Map<String, String> = LANGS.associate { it.code to it.defaultVoice },
     val localVoice: String = "",
-    val rate: Float = 0.9f,
+    val rate: Float = 1.1f,
+    val clipSpeed: Float = 1.25f,
     val repeat: Int = 1
 )
 
@@ -76,7 +77,8 @@ class Store(context: Context) {
             apiKey = p.getString("key", "") ?: "",
             cloudVoices = LANGS.associate { it.code to (p.getString("cv_${it.code}", it.defaultVoice) ?: it.defaultVoice) },
             localVoice = p.getString("lvoice", "") ?: "",
-            rate = p.getFloat("rate", 0.9f),
+            rate = p.getFloat("rate", 1.1f),
+            clipSpeed = p.getFloat("cspeed", 1.25f),
             repeat = p.getInt("repeat", 1)
         )
     }
@@ -84,7 +86,7 @@ class Store(context: Context) {
     fun saveSettings(s: Settings) {
         val e = p.edit().putString("langs", s.langs.joinToString(",")).putBoolean("cloud", s.useCloud)
             .putBoolean("clips", s.useClips).putString("key", s.apiKey).putString("lvoice", s.localVoice)
-            .putFloat("rate", s.rate).putInt("repeat", s.repeat)
+            .putFloat("rate", s.rate).putFloat("cspeed", s.clipSpeed).putInt("repeat", s.repeat)
         s.cloudVoices.forEach { (c, v) -> e.putString("cv_$c", v) }
         e.apply()
     }

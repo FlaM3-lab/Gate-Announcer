@@ -111,7 +111,7 @@ class Speaker(private val context: Context) {
     private fun scheduleNext(g: Int) {
         val cur = segs.getOrNull(idx - 1)?.first
         val next = segs.getOrNull(idx)?.first
-        val wait = if (cur != null && next != null && cur != next) 450L else 0L
+        val wait = if (cur != null && next != null && cur != next) 300L else 0L
         handler.postDelayed({ nextSeg(g) }, wait)
     }
 
@@ -156,6 +156,7 @@ class Speaker(private val context: Context) {
                 true
             }
             player = mp
+            try { mp.playbackParams = mp.playbackParams.setSpeed(cfg.clipSpeed) } catch (e: Exception) {}
             mp.start()
             // get the next clip ready while this one plays, so there is no wait between them
             val nxt = segs.getOrNull(idx)

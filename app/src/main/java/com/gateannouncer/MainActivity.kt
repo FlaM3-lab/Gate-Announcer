@@ -102,6 +102,16 @@ fun App(store: Store, speaker: Speaker) {
                 }
             }
 
+            Text("Voice speed", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Normal" to 1.0f, "Fast" to 1.25f, "Faster" to 1.5f).forEach { (n, v) ->
+                    FilterChip(
+                        selected = kotlin.math.abs(settings.clipSpeed - v) < 0.06f,
+                        onClick = { update(settings.copy(clipSpeed = v, rate = (0.9f * v).coerceAtMost(1.3f))) },
+                        label = { Text(n) })
+                }
+            }
+
             Text("Time of day", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CHOICES.getValue("greet").forEachIndexed { i, c ->
@@ -292,6 +302,8 @@ fun SettingsDialog(s: Settings, voices: List<String>, onChange: (Settings) -> Un
                     Switch(checked = s.useClips, onCheckedChange = { onChange(s.copy(useClips = it)) })
                 }
                 Text("Recorded clips are used for the fixed wording, numbers and times. Passenger names and anything else use the phone voice.", fontSize = 12.sp)
+                Text("Recorded voice speed: ${"%.2f".format(s.clipSpeed)}×")
+                Slider(value = s.clipSpeed, onValueChange = { onChange(s.copy(clipSpeed = it)) }, valueRange = 1.0f..1.6f)
                 HorizontalDivider()
                 Text("Phone voice (English)", fontWeight = FontWeight.SemiBold)
                 Box {
@@ -304,7 +316,7 @@ fun SettingsDialog(s: Settings, voices: List<String>, onChange: (Settings) -> Un
                     }
                 }
                 Text("Other languages use the phone’s default voice for that language.", fontSize = 12.sp)
-                Text("Speed: ${"%.2f".format(s.rate)}×")
+                Text("Phone voice speed: ${"%.2f".format(s.rate)}×")
                 Slider(value = s.rate, onValueChange = { onChange(s.copy(rate = it)) }, valueRange = 0.6f..1.3f)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Repeat all")
