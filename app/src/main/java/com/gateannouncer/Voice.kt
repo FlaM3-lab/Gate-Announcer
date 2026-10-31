@@ -63,6 +63,7 @@ object Voices {
     fun hours(lang: String) = strs("hours", lang)
     fun mins(lang: String) = strs("mins", lang)
     fun periods(lang: String) = strs("periods", lang)
+    fun numbers(lang: String) = strs("numbers", lang)
 }
 
 private val SLOT = Regex("\\{(\\w+)\\}")
@@ -85,6 +86,13 @@ private fun code(v: String, lang: String, out: MutableList<String>) {
             out.add(if (lt.size == 26) lt[ch.uppercaseChar() - 'A'] else ch.toString())
         }
     }
+}
+
+/** Gates 60 to 99 are said as whole numbers (sixty-five); anything else is read one character at a time. */
+private fun gate(v: String, lang: String, out: MutableList<String>) {
+    val n = v.toIntOrNull()
+    val nums = Voices.numbers(lang)
+    if (n != null && n in 60..99 && nums.size == 40) out.add(nums[n - 60]) else code(v, lang, out)
 }
 
 private fun timeParts(v: String, lang: String, out: MutableList<String>) {
@@ -152,7 +160,8 @@ private fun slot(k: String, vals: Map<String, String>, pax: List<Passenger>, lan
         v.isEmpty() -> {}
         choices != null -> choices.getOrNull(v.toIntOrNull() ?: -1)?.text?.get(lang)?.let { addFixed(it, out) }
         k == "etd" -> timeParts(v, lang, out)
-        k == "flight" || k == "cx" || k == "gate" -> code(v, lang, out)
+        k == "gate" -> gate(v, lang, out)
+        k == "flight" || k == "cx" -> code(v, lang, out)
         else -> out.add(v)
     }
 }

@@ -31,6 +31,8 @@ class Speaker(private val context: Context) {
     private var segs: List<Pair<String, String>> = emptyList()
     private var idx = 0
     private var cfg = Settings()
+    private var pre: MediaPlayer? = null
+    private var preIdx = -1
 
     init {
         tts = TextToSpeech(context) { status ->
@@ -86,6 +88,9 @@ class Speaker(private val context: Context) {
         if (ready) tts.stop()
         player?.release()
         player = null
+        pre?.release()
+        pre = null
+        preIdx = -1
     }
 
     fun shutdown() {
@@ -106,42 +111,61 @@ class Speaker(private val context: Context) {
     private fun scheduleNext(g: Int) {
         val cur = segs.getOrNull(idx - 1)?.first
         val next = segs.getOrNull(idx)?.first
-        val wait = if (cur != null && next != null && cur != next) 700L else 80L
+        val wait = if (cur != null && next != null && cur != next) 450L else 0L
         handler.postDelayed({ nextSeg(g) }, wait)
+    }
+
+    private fun loadClip(i: Int): MediaPlayer? {
+        if (!cfg.useClips) return null
+        val seg = segs.getOrNull(i) ?: return null
+        val f = Voices.clip(seg.first, seg.second) ?: return null
+        var mp: MediaPlayer? = null
+        return try {
+            mp = MediaPlayer()
+            mp.setDataSource(f.path)
+            mp.prepare()
+            mp
+        } catch (e: Exception) {
+            mp?.release()
+            null
+        }
     }
 
     private fun nextSeg(g: Int) {
         if (g != gen || idx >= segs.size) return
-        val seg = segs[idx++]
-        val lang = seg.first
-        val text = seg.second
-        val f = if (cfg.useClips) Voices.clip(lang, text) else null
-        if (f != null) {
-            var mp: MediaPlayer? = null
-            try {
-                mp = MediaPlayer()
-                mp.setDataSource(f.path)
-                mp.prepare()
-                mp.setOnCompletionListener { m ->
-                    m.release()
-                    if (player === m) player = null
-                    scheduleNext(g)
-                }
-                mp.setOnErrorListener { m, _, _ ->
-                    m.release()
-                    if (player === m) player = null
-                    scheduleNext(g)
-                    true
-                }
-                player = mp
-                mp.start()
-                return
-            } catch (e: Exception) {
-                mp?.release()
-                player = null
-            }
+        val i = idx++
+        val seg = segs[i]
+        var mp: MediaPlayer? = null
+        if (preIdx == i) {
+            mp = pre
+            pre = null
+            preIdx = -1
+        } else {
+            mp = loadClip(i)
         }
-        speakTts(lang, text, g)
+        if (mp != null) {
+            mp.setOnCompletionListener { m ->
+                m.release()
+                if (player === m) player = null
+                scheduleNext(g)
+            }
+            mp.setOnErrorListener { m, _, _ ->
+                m.release()
+                if (player === m) player = null
+                scheduleNext(g)
+                true
+            }
+            player = mp
+            mp.start()
+            // get the next clip ready while this one plays, so there is no wait between them
+            val nxt = segs.getOrNull(idx)
+            if (nxt != null && nxt.first == seg.first) {
+                pre = loadClip(idx)
+                preIdx = if (pre != null) idx else -1
+            }
+            return
+        }
+        speakTts(seg.first, seg.second, g)
     }
 
     private fun speakTts(lang: String, text: String, g: Int) {
