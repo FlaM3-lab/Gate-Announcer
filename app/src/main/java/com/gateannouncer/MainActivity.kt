@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val store = Store(this)
+        Voices.init(applicationContext)
         speaker = Speaker(this)
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
@@ -69,7 +70,7 @@ fun App(store: Store, speaker: Speaker) {
     val langs = LANGS.map { it.code }.filter { it in settings.langs }
     val items = build(cur, vals, pax, langs)
     val allText = items.joinToString("\n\n") { it.text }
-    val fieldKeys = cur.keys.filter { it != "greet" && it != "passengers" && !(it == "cx" && vals["csoff"] == "1") }
+    val fieldKeys = cur.keys.filter { it != "greet" && it != "passengers" && it != "dest" && !(it == "cx" && vals["csoff"] == "1") }
     val missing = fieldKeys.filter { vals[it].isNullOrBlank() } +
         (if ("passengers" in cur.keys && pax.none { it.name.isNotBlank() }) listOf("passengers") else emptyList())
     val noTranslation = langs.filter { !cur.hasLang(it) }.map { langOf(it).name }
@@ -134,6 +135,10 @@ fun App(store: Store, speaker: Speaker) {
                         }
                     }
                 } else {
+                    val support: (@Composable () -> Unit)? = when {
+                        k == "etd" -> { { Text("24-hour, for example 18:45") } }
+                        else -> null
+                    }
                     OutlinedTextField(
                         value = vals[k] ?: "",
                         onValueChange = { vals[k] = it; if (k in SAVED_KEYS) store.saveVals(vals) },
@@ -141,7 +146,7 @@ fun App(store: Store, speaker: Speaker) {
                         singleLine = true,
                         keyboardOptions = if (k == "flight" || k == "cx") KeyboardOptions(keyboardType = KeyboardType.Number)
                             else KeyboardOptions.Default,
-                        supportingText = if (k == "etd") { { Text("24-hour, for example 18:45") } } else null,
+                        supportingText = support,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -282,6 +287,12 @@ fun SettingsDialog(s: Settings, voices: List<String>, onChange: (Settings) -> Un
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Use recorded voice pack", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    Switch(checked = s.useClips, onCheckedChange = { onChange(s.copy(useClips = it)) })
+                }
+                Text("Recorded clips are used for the fixed wording, numbers and times. Passenger names and anything else use the phone voice.", fontSize = 12.sp)
+                HorizontalDivider()
                 Text("Phone voice (English)", fontWeight = FontWeight.SemiBold)
                 Box {
                     OutlinedButton(onClick = { menu = true }) { Text(s.localVoice.ifBlank { "Default" }) }

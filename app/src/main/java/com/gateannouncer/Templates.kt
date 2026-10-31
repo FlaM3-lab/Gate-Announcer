@@ -11,8 +11,8 @@ val LANGS = listOf(
 
 fun langOf(code: String) = LANGS.firstOrNull { it.code == code } ?: LANGS[0]
 
-/** One spoken part of an announcement: [text] is shown, [speech] is what is read aloud. */
-data class Item(val lang: String, val text: String, val speech: String = text)
+/** One language of an announcement: [text] is shown, [parts] are the short pieces that are read aloud. */
+data class Item(val lang: String, val text: String, val parts: List<String> = listOf(text))
 
 /** A tap-to-choose field. The saved value is the option's index; [text] holds the wording per language. */
 data class Choice(val label: String, val text: Map<String, String>)
@@ -61,7 +61,7 @@ data class Template(
     fun textFor(code: String) = if (hasLang(code)) texts[code]!! else texts["en"].orEmpty()
 }
 
-val SAVED_KEYS = setOf("flight", "cx", "dest", "gate", "csoff")
+val SAVED_KEYS = setOf("flight", "cx", "gate", "csoff")
 
 private val LABELS = mapOf(
     "flight" to "HK Express flight number (UO)", "cx" to "Cathay codeshare number (CX)",
@@ -76,7 +76,7 @@ private fun spaceDigits(v: String) =
     if (Regex("^[A-Za-z]{0,3}\\s*\\d+$").matches(v)) v.replace(Regex("(\\d)"), "\$1 ").trim() else v
 
 /** Turns 24-hour input like 18:45 or 1845 into wording for each language. */
-private fun fmtTime(v: String, lang: String): String {
+fun fmtTime(v: String, lang: String): String {
     val m = Regex("^(\\d{1,2})\\s*[:：.]?\\s*(\\d{2})$").find(v.trim()) ?: return v
     val h = m.groupValues[1].toInt()
     val mi = m.groupValues[2].toInt()
@@ -92,7 +92,9 @@ private fun fmtTime(v: String, lang: String): String {
 
 data class Passenger(val title: Int = -1, val name: String = "", val seat: String = "")
 
-private val CODESHARE = mapOf(
+val DEST = mapOf("en" to "Hong Kong", "ja" to "香港", "yue" to "香港")
+
+val CODESHARE = mapOf(
     "en" to ", codeshare with Cathay Pacific flight CX {cx}",
     "ja" to "、キャセイパシフィック航空とのコードシェア CX{cx}便",
     "yue" to "，代號共享航班：國泰航空 CX{cx}"
@@ -133,6 +135,7 @@ fun fill(t: Template, vals: Map<String, String>, pax: List<Passenger>, lang: Str
                 CODESHARE[lang].orEmpty().replace("{cx}", cxText)
             }
             k == "passengers" -> paxText(pax, lang, forSpeech)
+            k == "dest" -> DEST[lang] ?: DEST.getValue("en")
             v.isEmpty() -> blank
             choices != null -> choices.getOrNull(v.toIntOrNull() ?: -1)?.text?.get(lang) ?: blank
             k == "etd" -> fmtTime(v, lang)
@@ -142,7 +145,7 @@ fun fill(t: Template, vals: Map<String, String>, pax: List<Passenger>, lang: Str
     }
 
 fun build(t: Template, vals: Map<String, String>, pax: List<Passenger>, langs: List<String>): List<Item> =
-    langs.map { Item(it, fill(t, vals, pax, it, false), fill(t, vals, pax, it, true)) }
+    langs.map { Item(it, fill(t, vals, pax, it, false), speechParts(t, vals, pax, it)) }
 
 private fun t(group: String, title: String, en: String, ja: String, yue: String) =
     Template(title, mapOf("en" to en, "ja" to ja, "yue" to yue), false, group)

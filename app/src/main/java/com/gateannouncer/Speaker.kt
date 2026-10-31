@@ -15,7 +15,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
-/** Reads an announcement in one or more languages, one after another, with the phone voice or Google Cloud voices. */
+/**
+ * Reads an announcement piece by piece: recorded clips when the voice pack has them,
+ * the phone voice for anything else (such as passenger names). Optionally uses Google Cloud voices.
+ */
 class Speaker(private val context: Context) {
     var onStatus: (String) -> Unit = {}
     private var ready = false
@@ -25,7 +28,7 @@ class Speaker(private val context: Context) {
     private var job: Job? = null
     private var player: MediaPlayer? = null
     private var gen = 0
-    private var queue: List<Item> = emptyList()
+    private var segs: List<Pair<String, String>> = emptyList()
     private var idx = 0
     private var cfg = Settings()
 
@@ -43,7 +46,7 @@ class Speaker(private val context: Context) {
 
     private fun advance(id: String?) {
         val g = id?.removePrefix("g")?.toIntOrNull() ?: return
-        handler.postDelayed({ nextLocal(g) }, 500)
+        handler.post { scheduleNext(g) }
     }
 
     fun voices(): List<String> =
@@ -66,13 +69,13 @@ class Speaker(private val context: Context) {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    onStatus("Cloud voice unavailable (${e.message}). Using phone voice.")
-                    local(items, s)
+                    onStatus("Cloud voice unavailable (${e.message}). Using the recorded or phone voice.")
+                    playSegments(items, s)
                 }
             }
         } else {
-            onStatus("")
-            local(items, s)
+            onStatus(if (s.useClips && !Voices.ready) "Voice pack not found. Using the phone voice." else "")
+            playSegments(items, s)
         }
     }
 
@@ -91,33 +94,73 @@ class Speaker(private val context: Context) {
         scope.cancel()
     }
 
-    private fun local(items: List<Item>, s: Settings) {
-        if (!ready) { onStatus("Phone voice isn’t ready yet. Try again in a moment."); return }
+    private fun playSegments(items: List<Item>, s: Settings) {
         gen++
         cfg = s
-        queue = List(s.repeat) { items }.flatten()
+        val one = items.flatMap { item -> item.parts.map { item.lang to it } }
+        segs = List(s.repeat) { one }.flatten()
         idx = 0
-        nextLocal(gen)
+        nextSeg(gen)
     }
 
-    private fun nextLocal(g: Int) {
-        if (g != gen || idx >= queue.size) return
-        val item = queue[idx++]
-        val lang = langOf(item.lang)
-        val r = tts.setLanguage(Locale.forLanguageTag(lang.tag))
-        if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
-            onStatus("The phone has no ${lang.name} voice installed. Add one in Android’s text-to-speech settings.")
+    private fun scheduleNext(g: Int) {
+        val cur = segs.getOrNull(idx - 1)?.first
+        val next = segs.getOrNull(idx)?.first
+        val wait = if (cur != null && next != null && cur != next) 700L else 80L
+        handler.postDelayed({ nextSeg(g) }, wait)
+    }
+
+    private fun nextSeg(g: Int) {
+        if (g != gen || idx >= segs.size) return
+        val seg = segs[idx++]
+        val lang = seg.first
+        val text = seg.second
+        val f = if (cfg.useClips) Voices.clip(lang, text) else null
+        if (f != null) {
+            var mp: MediaPlayer? = null
+            try {
+                mp = MediaPlayer()
+                mp.setDataSource(f.path)
+                mp.prepare()
+                mp.setOnCompletionListener { m ->
+                    m.release()
+                    if (player === m) player = null
+                    scheduleNext(g)
+                }
+                mp.setOnErrorListener { m, _, _ ->
+                    m.release()
+                    if (player === m) player = null
+                    scheduleNext(g)
+                    true
+                }
+                player = mp
+                mp.start()
+                return
+            } catch (e: Exception) {
+                mp?.release()
+                player = null
+            }
         }
-        if (lang.code == "en") tts.voices?.firstOrNull { it.name == cfg.localVoice }?.let { tts.voice = it }
+        speakTts(lang, text, g)
+    }
+
+    private fun speakTts(lang: String, text: String, g: Int) {
+        if (!ready) { onStatus("Phone voice isn’t ready yet. Try again in a moment."); return }
+        val l = langOf(lang)
+        val r = tts.setLanguage(Locale.forLanguageTag(l.tag))
+        if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
+            onStatus("The phone has no ${l.name} voice installed. Add one in Android’s text-to-speech settings.")
+        }
+        if (lang == "en") tts.voices?.firstOrNull { it.name == cfg.localVoice }?.let { tts.voice = it }
         tts.setSpeechRate(cfg.rate)
-        tts.speak(item.speech, TextToSpeech.QUEUE_FLUSH, null, "g$g")
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "g$g")
     }
 
     private fun synthesize(item: Item, i: Int, s: Settings): File {
         val voice = s.cloudVoices[item.lang] ?: langOf(item.lang).defaultVoice
         val code = voice.split("-").take(2).joinToString("-")
         val body = JSONObject()
-            .put("input", JSONObject().put("text", item.speech))
+            .put("input", JSONObject().put("text", item.parts.joinToString(" ")))
             .put("voice", JSONObject().put("languageCode", code).put("name", voice))
             .put("audioConfig", JSONObject().put("audioEncoding", "MP3").put("speakingRate", s.rate.toDouble()))
         val url = URL("https://texttospeech.googleapis.com/v1/text:synthesize?key=${s.apiKey.trim()}")

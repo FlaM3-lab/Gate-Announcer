@@ -6,6 +6,7 @@ import org.json.JSONObject
 
 data class Settings(
     val langs: List<String> = listOf("en", "ja", "yue"),
+    val useClips: Boolean = true,
     val useCloud: Boolean = false,
     val apiKey: String = "",
     val cloudVoices: Map<String, String> = LANGS.associate { it.code to it.defaultVoice },
@@ -44,10 +45,14 @@ class Store(context: Context) {
     }
 
     fun loadHistory(): List<List<Item>> = try {
-        val a = JSONArray(p.getString("hist3", "[]")!!)
+        val a = JSONArray(p.getString("hist4", "[]")!!)
         (0 until a.length()).map { i ->
             val g = a.getJSONArray(i)
-            (0 until g.length()).map { j -> val o = g.getJSONObject(j); Item(o.getString("l"), o.getString("t"), o.getString("s")) }
+            (0 until g.length()).map { j ->
+                val o = g.getJSONObject(j)
+                val pa = o.getJSONArray("p")
+                Item(o.getString("l"), o.getString("t"), (0 until pa.length()).map { pa.getString(it) })
+            }
         }
     } catch (e: Exception) { emptyList() }
 
@@ -55,10 +60,10 @@ class Store(context: Context) {
         val a = JSONArray()
         list.forEach { g ->
             val ga = JSONArray()
-            g.forEach { ga.put(JSONObject().put("l", it.lang).put("t", it.text).put("s", it.speech)) }
+            g.forEach { ga.put(JSONObject().put("l", it.lang).put("t", it.text).put("p", JSONArray(it.parts))) }
             a.put(ga)
         }
-        p.edit().putString("hist3", a.toString()).apply()
+        p.edit().putString("hist4", a.toString()).apply()
     }
 
     fun loadSettings(): Settings {
@@ -66,6 +71,7 @@ class Store(context: Context) {
         val langs = (p.getString("langs", "en,ja,yue") ?: "en,ja,yue").split(",").filter { c -> LANGS.any { it.code == c } }
         return Settings(
             langs = langs.ifEmpty { d.langs },
+            useClips = p.getBoolean("clips", true),
             useCloud = p.getBoolean("cloud", false),
             apiKey = p.getString("key", "") ?: "",
             cloudVoices = LANGS.associate { it.code to (p.getString("cv_${it.code}", it.defaultVoice) ?: it.defaultVoice) },
@@ -77,7 +83,7 @@ class Store(context: Context) {
 
     fun saveSettings(s: Settings) {
         val e = p.edit().putString("langs", s.langs.joinToString(",")).putBoolean("cloud", s.useCloud)
-            .putString("key", s.apiKey).putString("lvoice", s.localVoice)
+            .putBoolean("clips", s.useClips).putString("key", s.apiKey).putString("lvoice", s.localVoice)
             .putFloat("rate", s.rate).putInt("repeat", s.repeat)
         s.cloudVoices.forEach { (c, v) -> e.putString("cv_$c", v) }
         e.apply()
